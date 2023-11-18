@@ -1,37 +1,26 @@
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationError, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import * as winston from 'winston';
-import {
-  utilities as nestWinstonModuleUtilities,
-  WinstonModule,
-} from 'nest-winston';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from 'src/exception/http-exception.filter';
 
+import swaggerInit from './swagger';
+import { ValidationException } from './common/exceptions/validation.exception';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: WinstonModule.createLogger({
-      transports: [
-        new winston.transports.Console({
-          level: process.env.NODE_ENV === 'production' ? 'info' : 'silly',
-          format: winston.format.combine(
-            winston.format.timestamp(),
-            nestWinstonModuleUtilities.format.nestLike('MyApp', {
-              prettyPrint: true,
-            }),
-          ),
-        }),
-      ],
-    }),
-  });
+  const app = await NestFactory.create(AppModule);
+  swaggerInit(app);
+
+  // 글로벌 파이프 세팅
   app.useGlobalPipes(
     new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors: ValidationError[]) => {
+        const errorObj = errors[0].constraints;
+        const [errorObjKey] = Object.keys(errorObj);
+        throw new ValidationException(errorObj[errorObjKey]);
+      },
     }),
   );
-  // app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
-  // app.useGlobalFilters(new HttpExceptionFilter()); // 전역 필터 적용
-  await app.listen(3333);
+  await app.listen(3400);
 }
 bootstrap();
